@@ -26,11 +26,14 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState(false);
   const [activeTab, setActiveTab] = useState('profile');
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
     setUser(auth.currentUser);
     fetchDbUserProfile();
+    fetchSessions();
   }, []);
 
   const fetchDbUserProfile = async () => {
@@ -42,6 +45,54 @@ export default function Settings() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchSessions = async () => {
+    try {
+      setLoadingSessions(true);
+      const res = await api.get('/sessions');
+      if (res.data.success) {
+        setSessions(res.data.sessions);
+      }
+    } catch (err) {
+      console.error('Error fetching active sessions:', err);
+    } finally {
+      setLoadingSessions(false);
+    }
+  };
+
+  const handleRevokeSession = async (sessionId: string) => {
+    try {
+      const res = await api.delete(`/sessions/${sessionId}`);
+      if (res.data.success) {
+        fetchSessions();
+      }
+    } catch (err) {
+      console.error('Error revoking device session:', err);
+    }
+  };
+
+  const handleRevokeAllOtherSessions = async () => {
+    try {
+      const res = await api.post('/sessions/revoke-all');
+      if (res.data.success) {
+        fetchSessions();
+      }
+    } catch (err) {
+      console.error('Error revoking all other sessions:', err);
+    }
+  };
+
+  const formatLastActive = (dateStr: string) => {
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
   };
 
   const handleLogout = async () => {
@@ -298,57 +349,80 @@ export default function Settings() {
                 Security & Sessions
               </h3>
               <span className="px-2.5 py-0.5 rounded bg-white/5 text-gray-400 text-[10px] font-extrabold uppercase tracking-wider">
-                2 Devices Active
+                {sessions.length} {sessions.length === 1 ? 'Device' : 'Devices'} Active
               </span>
             </div>
 
             <div className="space-y-4">
-              {/* Box 1: MacBook Pro */}
-              <div className="border border-white/[0.04] bg-[#0c1324]/40 p-4 rounded-xl flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0 border border-indigo-500/15">
-                  <Laptop className="w-4.5 h-4.5 text-indigo-400" />
+              {loadingSessions ? (
+                <div className="py-8 text-center text-xs text-gray-500 font-semibold">
+                  Loading active device sessions...
                 </div>
-                <div className="flex flex-col min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-white">MacBook Pro 14"</span>
-                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[9px] font-bold uppercase tracking-wider">
-                      Current
-                    </span>
-                  </div>
-                  <span className="text-[10px] text-gray-500 font-semibold mt-1">
-                    Chrome • San Francisco, CA • 192.168.1.1
-                  </span>
+              ) : sessions.length === 0 ? (
+                <div className="py-8 text-center text-xs text-gray-500 font-semibold">
+                  No active sessions found.
                 </div>
-              </div>
-
-              {/* Box 2: iPhone 15 Pro */}
-              <div className="border border-white/[0.04] bg-[#0c1324]/40 p-4 rounded-xl flex items-center justify-between gap-4">
-                <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0 border border-violet-500/15">
-                    <Smartphone className="w-4.5 h-4.5 text-violet-400" />
-                  </div>
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-xs font-bold text-white">iPhone 15 Pro</span>
-                    <span className="text-[10px] text-gray-500 font-semibold mt-1">
-                      iOS App • 2 days ago • 192.168.1.45
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {}}
-                  className="text-xs font-bold text-rose-455 hover:brightness-110 transition-all px-2 py-1"
-                >
-                  Revoke
-                </button>
-              </div>
+              ) : (
+                sessions.map((session) => {
+                  const isLaptop = session.device.toLowerCase().includes('mac') ||
+                    session.device.toLowerCase().includes('pc') ||
+                    session.device.toLowerCase().includes('desktop') ||
+                    session.device.toLowerCase().includes('windows');
+                  
+                  return (
+                    <div
+                      key={session._id}
+                      className="border border-white/[0.04] bg-[#0c1324]/40 p-4 rounded-xl flex items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-4 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border ${
+                          session.isCurrent 
+                            ? 'bg-indigo-500/10 border-indigo-500/15 text-indigo-400' 
+                            : 'bg-violet-500/10 border-violet-500/15 text-violet-400'
+                        }`}>
+                          {isLaptop ? (
+                            <Laptop className="w-4.5 h-4.5" />
+                          ) : (
+                            <Smartphone className="w-4.5 h-4.5" />
+                          )}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-white">{session.device}</span>
+                            {session.isCurrent && (
+                              <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[9px] font-bold uppercase tracking-wider">
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-[10px] text-gray-500 font-semibold mt-1">
+                            {session.browser} • {session.os} • {session.isCurrent ? 'Active now' : formatLastActive(session.lastActive)} • {session.location} • {session.ipAddress}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {!session.isCurrent && (
+                        <button
+                          onClick={() => handleRevokeSession(session._id)}
+                          className="text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors px-2 py-1 shrink-0"
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
 
               {/* Box 3: Revoke All button */}
-              <button
-                onClick={() => {}}
-                className="w-full text-center py-3 border border-dashed border-white/[0.08] rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:border-white/[0.16] hover:bg-white/[0.01] transition-all active:scale-[0.98]"
-              >
-                Revoke all other sessions
-              </button>
+              {sessions.filter(s => !s.isCurrent).length > 0 && (
+                <button
+                  onClick={handleRevokeAllOtherSessions}
+                  className="w-full text-center py-3 border border-dashed border-white/[0.08] rounded-xl text-xs font-bold text-gray-400 hover:text-white hover:border-white/[0.16] hover:bg-white/[0.01] transition-all active:scale-[0.98]"
+                >
+                  Revoke all other sessions
+                </button>
+              )}
             </div>
           </div>
 

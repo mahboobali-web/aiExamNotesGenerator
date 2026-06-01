@@ -22,7 +22,7 @@ function App() {
   const refreshCredits = async () => {
     if (auth.currentUser) {
       try {
-        const res = await api.post('/auth/sync');
+        const res = await api.post('/auth/sync', { refreshToken: auth.currentUser.refreshToken });
         setCredits(res.data.user.freeCredits);
       } catch (err) {
         console.error('Error refreshing credits:', err);
@@ -44,7 +44,7 @@ function App() {
       if (currentUser) {
         try {
           // Sync user on initial load or refresh
-          const res = await api.post('/auth/sync');
+          const res = await api.post('/auth/sync', { refreshToken: currentUser.refreshToken });
           setCredits(res.data.user.freeCredits);
         } catch (err) {
           console.error('Failed to sync user on load:', err);

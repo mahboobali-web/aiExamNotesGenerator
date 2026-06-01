@@ -25,8 +25,12 @@ export const loginWithGoogle = async () => {
     const response = await fetch(`${baseUrl}/auth/sync`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${token}`
-      }
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        refreshToken: result.user.refreshToken
+      })
     });
     if (!response.ok) throw new Error('Failed to sync user with backend');
     return result.user;

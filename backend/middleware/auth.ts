@@ -1,8 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { auth } from '../config/firebase';
+import User from '../models/User';
+import Session from '../models/Session';
 
 export interface AuthRequest extends Request {
   user?: any;
+  session?: any;
 }
 
 export const verifyToken = async (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -19,6 +22,29 @@ export const verifyToken = async (req: AuthRequest, res: Response, next: NextFun
   try {
     const decodedToken = await auth.verifyIdToken(token);
     req.user = decodedToken;
+    
+    // Validate active session if X-Refresh-Token is provided
+    const clientRefreshToken = req.headers['x-refresh-token'] as string;
+    if (clientRefreshToken) {
+      const dbUser = await User.findOne({ firebaseUid: decodedToken.uid });
+      if (dbUser) {
+        const session = await Session.findOne({
+          userId: dbUser._id,
+          refreshToken: clientRefreshToken
+        });
+        
+        // Block request if the session was explicitly revoked or doesn't exist anymore
+        if (!session || session.revokedAt) {
+          return res.status(401).json({ error: 'Session revoked. Forced logout.' });
+        }
+        
+        // Update lastActive timestamp
+        session.lastActive = new Date();
+        await session.save();
+        req.session = session;
+      }
+    }
+
     next();
   } catch (error: any) {
     console.error('Token verification error:', error.message || error);
@@ -48,6 +74,25 @@ export const verifyToken = async (req: AuthRequest, res: Response, next: NextFun
             name: decodedToken.name || decodedToken.email?.split('@')[0] || 'User',
             ...decodedToken
           };
+
+          // Validate session with fallback auth token
+          const clientRefreshToken = req.headers['x-refresh-token'] as string;
+          if (clientRefreshToken) {
+            const dbUser = await User.findOne({ firebaseUid: req.user.uid });
+            if (dbUser) {
+              const session = await Session.findOne({
+                userId: dbUser._id,
+                refreshToken: clientRefreshToken
+              });
+              if (!session || session.revokedAt) {
+                return res.status(401).json({ error: 'Session revoked. Forced logout.' });
+              }
+              session.lastActive = new Date();
+              await session.save();
+              req.session = session;
+            }
+          }
+
           return next();
         } else {
           console.error('⚠️ DEV WARNING: Token is not a valid 3-part JWT, cannot bypass.');

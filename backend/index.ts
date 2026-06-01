@@ -8,6 +8,7 @@ import generateRoutes from './routes/generate';
 import paymentRoutes from './routes/payments';
 import notesRoutes from './routes/notes';
 import toolRoutes from './routes/tools';
+import sessionsRoutes from './routes/sessions';
 
 dotenv.config();
 
@@ -36,6 +37,7 @@ app.use('/api/generate', generateRoutes);
 app.use('/api/checkout', paymentRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/tools', toolRoutes);
+app.use('/api/sessions', sessionsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
