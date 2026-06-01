@@ -63,6 +63,18 @@ interface NotesDashboardProps {
 export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDashboardProps) {
   const [activeTab, setActiveTab] = useState('comprehensive');
 
+  // Helper to safely render strings even if the AI accidentally generates objects
+  const renderTextElement = (item: any): string => {
+    if (!item) return '';
+    if (typeof item === 'string') return item;
+    if (typeof item === 'object') {
+      return item.title 
+        ? `${item.title}${item.content ? `: ${item.content}` : ''}${item.description ? `: ${item.description}` : ''}`
+        : JSON.stringify(item);
+    }
+    return String(item);
+  };
+
   // Safe JSON Parsing with strict JSON keys fallback, markdown code fence stripping, and automatic syntax healing
   let parsed: any = null;
   try {
@@ -424,8 +436,9 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                     <Sparkles className="w-5 h-5 text-violet-400/30" />
                   </div>
                   <p className="text-[14px] text-gray-400 leading-relaxed">
-                    {data.revisionPoints?.slice(0, 2).join('. ') ||
-                      `Comprehensive synthesis of ${topic} covering key concepts, critical formulas, and exam-focused insights.`}
+                    {(data.revisionPoints && Array.isArray(data.revisionPoints))
+                      ? data.revisionPoints.slice(0, 2).map(renderTextElement).join('. ')
+                      : `Comprehensive synthesis of ${topic} covering key concepts, critical formulas, and exam-focused insights.`}
                   </p>
                   <button
                     onClick={() => {
@@ -458,8 +471,8 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                     Quick Exam Summary
                   </h4>
                   <ul className="text-[15px] text-gray-300 leading-relaxed list-disc pl-5 space-y-4">
-                    {data.revisionPoints.map((point: string, i: number) => (
-                      <li key={i} className="font-medium">{point}</li>
+                    {Array.isArray(data.revisionPoints) && data.revisionPoints.map((point: any, i: number) => (
+                      <li key={i} className="font-medium">{renderTextElement(point)}</li>
                     ))}
                   </ul>
                 </div>
@@ -471,8 +484,8 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                       Short Questions
                     </span>
                     <ul className="text-[14px] text-gray-400 leading-relaxed list-disc pl-5 space-y-2.5">
-                      {data.questions.short.map((q: string, i: number) => (
-                        <li key={i} className="font-medium">{q}</li>
+                      {Array.isArray(data.questions.short) && data.questions.short.map((q: any, i: number) => (
+                        <li key={i} className="font-medium">{renderTextElement(q)}</li>
                       ))}
                     </ul>
                   </div>
@@ -484,8 +497,8 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                       Long Questions
                     </span>
                     <ul className="text-[14px] text-gray-400 leading-relaxed list-disc pl-5 space-y-2.5">
-                      {data.questions.long.map((q: string, i: number) => (
-                        <li key={i} className="font-medium">{q}</li>
+                      {Array.isArray(data.questions.long) && data.questions.long.map((q: any, i: number) => (
+                        <li key={i} className="font-medium">{renderTextElement(q)}</li>
                       ))}
                     </ul>
                   </div>
@@ -503,8 +516,8 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                         ⭐ Standard Priority
                       </h4>
                       <ul className="text-[13px] text-gray-400 leading-relaxed list-disc pl-4 space-y-1.5">
-                        {data.subTopics["⭐"].map((item: string, i: number) => (
-                          <li key={i}>{item}</li>
+                        {Array.isArray(data.subTopics["⭐"]) && data.subTopics["⭐"].map((item: any, i: number) => (
+                          <li key={i}>{renderTextElement(item)}</li>
                         ))}
                       </ul>
                     </div>
@@ -516,8 +529,8 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                         ⭐⭐ High Priority
                       </h4>
                       <ul className="text-[13px] text-gray-400 leading-relaxed list-disc pl-4 space-y-1.5">
-                        {data.subTopics["⭐⭐"].map((item: string, i: number) => (
-                          <li key={i}>{item}</li>
+                        {Array.isArray(data.subTopics["⭐⭐"]) && data.subTopics["⭐⭐"].map((item: any, i: number) => (
+                          <li key={i}>{renderTextElement(item)}</li>
                         ))}
                       </ul>
                     </div>
@@ -529,8 +542,8 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                         ⭐⭐⭐ Critical Priority
                       </h4>
                       <ul className="text-[13px] text-gray-400 leading-relaxed list-disc pl-4 space-y-1.5">
-                        {data.subTopics["⭐⭐⭐"].map((item: string, i: number) => (
-                          <li key={i}>{item}</li>
+                        {Array.isArray(data.subTopics["⭐⭐⭐"]) && data.subTopics["⭐⭐⭐"].map((item: any, i: number) => (
+                          <li key={i}>{renderTextElement(item)}</li>
                         ))}
                       </ul>
                     </div>

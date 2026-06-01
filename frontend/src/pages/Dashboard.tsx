@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card, CardContent } from '../components/ui/card';
-import { Sparkles, BookOpen, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowRight, Bell, ChevronDown } from 'lucide-react';
+import { Sparkles, BookOpen, Clock, TrendingUp, CheckCircle2, AlertTriangle, ArrowRight, Bell, ChevronDown, Upload, FileText, Settings2, BarChart2, LayoutTemplate, Lightbulb, Layers, Languages, Zap, Check, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../lib/api';
 import NotesDashboard from './NotesDashboard';
@@ -11,16 +11,27 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function Dashboard() {
   const [topic, setTopic] = useState('');
-  const [classLevel, setClassLevel] = useState('University / Undergraduate');
-  const [examType, setExamType] = useState('Multiple Choice (MCQ)');
   const [revisionMode, setRevisionMode] = useState(false);
   const [includeDiagram, setIncludeDiagram] = useState(false);
   const [includeChart, setIncludeChart] = useState(false);
   const [quickSheet, setQuickSheet] = useState(false);
   
+  // Advanced Settings
+  const [outputLength, setOutputLength] = useState('Medium');
+  const [language, setLanguage] = useState('English');
+  const [learningStyle, setLearningStyle] = useState('Academic');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // File Upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [result, setResult] = useState<{content: string, topic: string} | null>(null);
   const [credits, setCredits] = useState<number | null>(null);
+  const [streak, setStreak] = useState<number>(0);
   const [notesCount, setNotesCount] = useState<number>(0);
   const [diagramsCount, setDiagramsCount] = useState<number>(0);
   const [docsCount, setDocsCount] = useState<number>(0);
@@ -37,6 +48,25 @@ export default function Dashboard() {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.state, navigate, location.pathname]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (loading) {
+      interval = setInterval(() => {
+        setLoadingStep((prev) => (prev + 1) % 4);
+      }, 2500);
+    } else {
+      setLoadingStep(0);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
+
+  const loadingMessages = [
+    "Analyzing Topic...",
+    "Building Study Material...",
+    "Generating Notes...",
+    "Creating Formatting..."
+  ];
 
   useEffect(() => {
     fetchDashboardStats();
@@ -74,8 +104,9 @@ export default function Dashboard() {
 
   const fetchDashboardStats = async () => {
     try {
-      const userRes = await api.post('/auth/sync');
+      const userRes = await api.get('/auth/me');
       setCredits(userRes.data.user.freeCredits);
+      setStreak(userRes.data.user.currentStreak || 0);
       
       const notesRes = await api.get('/notes');
       const fetchedNotes = notesRes.data.notes || [];
@@ -97,27 +128,42 @@ export default function Dashboard() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!topic) return;
+    if (!topic || credits === null || credits <= 0) return;
 
-    // Strict 0-credits block: Lock actions immediately on frontend
-    if (credits !== null && credits <= 0) {
-      setError('Insufficient credits. Please purchase a package or top-up your balance to generate new study notes.');
-      return;
-    }
-    
     setLoading(true);
     setResult(null);
     setError(null);
+    
     try {
-      const response = await api.post('/generate', { 
-        topic, 
-        classLevel, 
-        examType, 
-        revisionMode, 
-        includeDiagram, 
-        includeChart,
-        quickSheet
-      });
+      let data: FormData | any = null;
+      let config = {};
+
+      if (file) {
+        data = new FormData();
+        data.append('file', file);
+        data.append('topic', topic);
+        data.append('outputLength', outputLength);
+        data.append('language', language);
+        data.append('learningStyle', learningStyle);
+        data.append('revisionMode', String(revisionMode));
+        data.append('includeDiagram', String(includeDiagram));
+        data.append('includeChart', String(includeChart));
+        data.append('quickSheet', String(quickSheet));
+        config = { };
+      } else {
+        data = {
+          topic, 
+          outputLength,
+          language,
+          learningStyle,
+          revisionMode, 
+          includeDiagram, 
+          includeChart,
+          quickSheet
+        };
+      }
+
+      const response = await api.post('/generate', data, config);
       setResult({ content: response.data.note.content, topic: topic });
       setCredits(response.data.remainingCredits);
       
@@ -136,6 +182,29 @@ export default function Dashboard() {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to generate notes. Please try again.';
       setError(errorMessage);
     }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const uploadedFile = event.target.files?.[0];
+    if (!uploadedFile) return;
+    
+    const fileType = uploadedFile.name.split('.').pop()?.toLowerCase();
+    if (!['pdf', 'docx', 'txt'].includes(fileType || '')) {
+      alert('Unsupported file format. Please upload PDF, DOCX, or TXT.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    setFile(uploadedFile);
+    setFileName(uploadedFile.name);
+    
+    // Reset input so the same file can be selected again if removed
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeFile = () => {
+    setFile(null);
+    setFileName(null);
   };
 
   // High-fidelity pre-populated default mock templates to ensure dashboard always looks full and visual
@@ -372,9 +441,9 @@ export default function Dashboard() {
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="bg-[#2b161c] border border-[#f43f5e]/25 text-[#f43f5e] rounded-xl px-4 py-2 text-xs md:text-sm font-extrabold flex items-center gap-2 shadow-sm shrink-0"
+          className={`${streak > 0 ? 'bg-[#2b161c] border-[#f43f5e]/25 text-[#f43f5e]' : 'bg-[#1e2332] border-white/5 text-gray-400'} border rounded-xl px-4 py-2 text-xs md:text-sm font-extrabold flex items-center gap-2 shadow-sm shrink-0`}
         >
-          <span>5 day streak 🔥</span>
+          <span>{streak} day streak {streak > 0 ? '🔥' : '🧊'}</span>
         </motion.div>
       </div>
 
@@ -410,162 +479,237 @@ export default function Dashboard() {
           
           <div className="flex flex-col items-center text-center">
             {/* Engine v4.0 Badge */}
-            <span className="bg-[#222a3d] border border-white/5 text-[#c0c1ff] text-[9px] font-extrabold uppercase tracking-widest py-1 px-3 rounded-full mb-3 shadow">
-              New Generation Engine v4.0
+            {/* Engine v4.0 Badge */}
+            <span className="bg-[#222a3d] border border-white/5 text-[#c0c1ff] text-[9px] font-extrabold uppercase tracking-widest py-1.5 px-4 rounded-full mb-4 shadow flex items-center gap-1.5 w-max mx-auto select-none">
+              <Sparkles className="w-3 h-3 text-indigo-400" /> AI Notes Generator
             </span>
             
-            <h2 className="text-xl md:text-2xl font-extrabold text-white tracking-tight mb-8">
-              What are we studying today?
+            <h2 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight mb-3">
+              What do you want to learn today?
             </h2>
+            <p className="text-gray-400 text-sm max-w-2xl mx-auto mb-8 font-medium">
+              Describe any topic, concept, chapter, subject, skill, exam preparation goal, or learning objective and AI will create personalized study notes.
+            </p>
 
-            <form onSubmit={handleGenerate} className="w-full max-w-4xl space-y-6 text-left">
-              {/* Row 1: Topic Input */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest block">
-                  Topic
-                </label>
-                <Input 
-                  placeholder="e.g. Photosynthesis, Cellular Respiration, world war II..." 
+            {/* Empty State Examples (Visible only when topic is empty) */}
+            {!topic && (
+              <div className="w-full max-w-4xl mb-6 flex flex-wrap justify-center gap-2">
+                {[
+                  "Create final exam notes on Human Resource Management",
+                  "Explain Object Oriented Programming with examples",
+                  "Generate revision notes for Operating Systems",
+                  "Teach me React Hooks from beginner to advanced",
+                  "Create study notes for Data Structures"
+                ].map((example, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setTopic(example)}
+                    className="text-[10px] text-gray-500 bg-[#171f33]/40 hover:bg-[#171f33] hover:text-gray-300 border border-white/5 hover:border-white/10 px-3 py-1.5 rounded-full transition-all cursor-pointer"
+                  >
+                    {example}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <form onSubmit={handleGenerate} className="w-full max-w-4xl space-y-6 text-left relative">
+              
+              {/* Textarea Area */}
+              <div className="relative group">
+                <textarea
                   value={topic}
                   onChange={(e) => setTopic(e.target.value)}
-                  disabled={credits !== null && credits <= 0}
-                  className="h-11 bg-[#0b1326] border border-white/10 text-white placeholder-gray-500 focus:bg-[#0b1326] focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/20 transition-all rounded-xl px-4 text-xs font-semibold"
+                  placeholder="e.g., Create complete final exam notes on Human Resource Management..."
+                  disabled={credits !== null && credits <= 0 || loading}
+                  className="w-full h-36 md:h-44 bg-[#0b1326]/80 backdrop-blur-xl border border-white/10 text-white placeholder-gray-500 focus:bg-[#0b1326] focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/20 transition-all rounded-2xl p-5 text-sm md:text-base font-medium resize-none shadow-inner leading-relaxed"
                 />
-              </div>
-
-              {/* Row 2: Select Fields for Class/Level and Exam Type */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest block">
-                    Class / Level
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={classLevel}
-                      onChange={(e) => setClassLevel(e.target.value)}
-                      disabled={credits !== null && credits <= 0}
-                      className="w-full h-11 bg-[#0b1326] border border-white/10 text-white rounded-xl px-4 text-xs font-semibold focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/20 transition-all appearance-none cursor-pointer pr-10"
-                    >
-                      <option value="High School / Class 10">High School / Class 10</option>
-                      <option value="High School / Class 12">High School / Class 12</option>
-                      <option value="University / Undergraduate">University / Undergraduate</option>
-                      <option value="Graduate / Professional">Graduate / Professional</option>
-                      <option value="General">General / Other</option>
-                    </select>
-                    <ChevronDown className="w-4 h-4 text-gray-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                  </div>
-                </div>
                 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest block">
-                    Exam Type
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={examType}
-                      onChange={(e) => setExamType(e.target.value)}
-                      disabled={credits !== null && credits <= 0}
-                      className="w-full h-11 bg-[#0b1326] border border-white/10 text-white rounded-xl px-4 text-xs font-semibold focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/20 transition-all appearance-none cursor-pointer pr-10"
+                {/* Upload Section */}
+                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between border-t border-white/5 pt-3">
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileUpload} 
+                    accept=".pdf,.docx,.txt" 
+                    className="hidden" 
+                  />
+                  <div className="flex items-center gap-2">
+                    <button 
+                      type="button" 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-2 text-xs font-semibold text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-lg border border-transparent hover:border-white/5"
                     >
-                      <option value="Multiple Choice (MCQ)">Multiple Choice (MCQ)</option>
-                      <option value="Short Answer Papers">Short Answer Papers</option>
-                      <option value="Essay Exams">Essay Exams</option>
-                      <option value="CBSE">CBSE Board Exam</option>
-                      <option value="JEE">JEE / Engineering</option>
-                      <option value="NEET">NEET / Medical</option>
-                      <option value="SAT">SAT / General Aptitude</option>
-                    </select>
-                    <ChevronDown className="w-4 h-4 text-gray-500 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <Upload className="w-3.5 h-3.5" />
+                      Upload Study Material
+                    </button>
+                    {fileName && (
+                      <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-md flex items-center gap-1 border border-indigo-500/30">
+                        <FileText className="w-3 h-3" />
+                        {fileName}
+                        <button type="button" onClick={removeFile} className="ml-1 hover:text-white"><X className="w-3 h-3" /></button>
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-gray-500 font-medium hidden md:block uppercase tracking-wider">
+                    Optional: PDF, DOCX, TXT
                   </div>
                 </div>
               </div>
 
-              {/* Row 3: Four Custom Sliding Switches */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-                {/* Switch 1: Revision Mode */}
-                <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#171f33]/65 border border-white/5 select-none">
-                  <span className="text-[11px] font-extrabold text-white">Revision Mode</span>
+              {/* Suggestion Chips */}
+              <div className="flex flex-wrap items-center gap-2">
+                {[
+                  { icon: "🔥", label: "Final Exam Notes" },
+                  { icon: "⚡", label: "Quick Revision" },
+                  { icon: "📚", label: "Detailed Notes" },
+                  { icon: "🎯", label: "Important Questions" },
+                  { icon: "🧠", label: "Concept Explanation" },
+                  { icon: "📋", label: "Study Guide" },
+                  { icon: "📖", label: "Beginner Friendly" },
+                  { icon: "🚀", label: "Advanced Learning" },
+                ].map((chip, idx) => (
                   <button
+                    key={idx}
                     type="button"
-                    disabled={credits !== null && credits <= 0}
-                    onClick={() => setRevisionMode(!revisionMode)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      revisionMode ? 'bg-gradient-to-r from-indigo-500 to-violet-600 shadow-md shadow-indigo-500/10' : 'bg-[#0b1326] border-white/10 border'
-                    } ${credits !== null && credits <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={() => {
+                      if (!topic.includes(chip.label)) {
+                        setTopic(prev => prev ? `${prev.trim()} (${chip.label})` : `Create ${chip.label.toLowerCase()} about `);
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/5 bg-[#171f33]/40 hover:bg-[#1f2940] hover:border-indigo-500/30 transition-colors text-xs font-semibold text-gray-400 hover:text-white shadow-sm"
                   >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        revisionMode ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
+                    <span>{chip.icon}</span>
+                    {chip.label}
                   </button>
+                ))}
+              </div>
+
+              {/* Advanced Settings Collapsible */}
+              <div className="border border-white/5 rounded-2xl bg-[#0b1326]/50 overflow-hidden transition-all duration-300">
+                <button
+                  type="button"
+                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                  className="w-full flex items-center justify-between p-4 text-sm font-semibold text-gray-300 hover:bg-white/5 transition-colors focus:outline-none"
+                >
+                  <span className="flex items-center gap-2">
+                    <Settings2 className="w-4 h-4 text-indigo-400" />
+                    Advanced Settings <span className="text-[10px] text-gray-500 font-medium ml-1 tracking-wider uppercase">(Optional)</span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${isSettingsOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                <AnimatePresence>
+                  {isSettingsOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="border-t border-white/5"
+                    >
+                      <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div className="space-y-2.5">
+                          <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest block">Output Length</label>
+                          <select value={outputLength} onChange={(e) => setOutputLength(e.target.value)} className="w-full h-11 bg-[#171f33] border border-white/10 text-white rounded-xl px-4 text-xs font-semibold focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/20 transition-all outline-none appearance-none cursor-pointer">
+                            <option value="Short">Short (Summary)</option>
+                            <option value="Medium">Medium (Standard)</option>
+                            <option value="Detailed">Detailed (Comprehensive)</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2.5">
+                          <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest block">Language</label>
+                          <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full h-11 bg-[#171f33] border border-white/10 text-white rounded-xl px-4 text-xs font-semibold focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/20 transition-all outline-none appearance-none cursor-pointer">
+                            <option value="English">English</option>
+                            <option value="Urdu">Urdu</option>
+                            <option value="Mixed">Mixed (English/Urdu)</option>
+                          </select>
+                        </div>
+                        <div className="space-y-2.5">
+                          <label className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest block">Learning Style</label>
+                          <select value={learningStyle} onChange={(e) => setLearningStyle(e.target.value)} className="w-full h-11 bg-[#171f33] border border-white/10 text-white rounded-xl px-4 text-xs font-semibold focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/20 transition-all outline-none appearance-none cursor-pointer">
+                            <option value="Academic">Academic / Formal</option>
+                            <option value="Practical">Practical / Applied</option>
+                            <option value="Beginner Friendly">Beginner Friendly / Simple</option>
+                            <option value="Exam Focused">Exam Focused / Cramming</option>
+                          </select>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Generation Modes (Cards) */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div onClick={() => setRevisionMode(!revisionMode)} className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex flex-col gap-3 ${revisionMode ? 'bg-indigo-500/10 border-indigo-500/50 shadow-inner' : 'bg-[#171f33]/40 border-white/5 hover:border-white/10 hover:bg-[#171f33]/60'}`}>
+                  <div className="flex items-center justify-between">
+                    <Zap className={`w-5 h-5 ${revisionMode ? 'text-indigo-400' : 'text-gray-500'}`} />
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${revisionMode ? 'bg-indigo-500 border-indigo-500' : 'border-white/20'}`}>
+                      {revisionMode && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className={`text-sm font-bold ${revisionMode ? 'text-white' : 'text-gray-300'}`}>Revision Mode</h4>
+                    <p className="text-[10px] text-gray-500 mt-1 leading-tight font-medium">Create concise exam-focused notes.</p>
+                  </div>
                 </div>
 
-                {/* Switch 2: Include Diagrams */}
-                <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#171f33]/65 border border-white/5 select-none">
-                  <span className="text-[11px] font-extrabold text-white">Include Diagrams</span>
-                  <button
-                    type="button"
-                    disabled={credits !== null && credits <= 0}
-                    onClick={() => setIncludeDiagram(!includeDiagram)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      includeDiagram ? 'bg-gradient-to-r from-indigo-500 to-violet-600 shadow-md shadow-indigo-500/10' : 'bg-[#0b1326] border-white/10 border'
-                    } ${credits !== null && credits <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        includeDiagram ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
+                <div onClick={() => setIncludeDiagram(!includeDiagram)} className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex flex-col gap-3 ${includeDiagram ? 'bg-indigo-500/10 border-indigo-500/50 shadow-inner' : 'bg-[#171f33]/40 border-white/5 hover:border-white/10 hover:bg-[#171f33]/60'}`}>
+                  <div className="flex items-center justify-between">
+                    <LayoutTemplate className={`w-5 h-5 ${includeDiagram ? 'text-indigo-400' : 'text-gray-500'}`} />
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${includeDiagram ? 'bg-indigo-500 border-indigo-500' : 'border-white/20'}`}>
+                      {includeDiagram && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className={`text-sm font-bold ${includeDiagram ? 'text-white' : 'text-gray-300'}`}>Include Diagrams</h4>
+                    <p className="text-[10px] text-gray-500 mt-1 leading-tight font-medium">Generate visual diagrams and flowcharts.</p>
+                  </div>
                 </div>
 
-                {/* Switch 3: Include Charts */}
-                <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#171f33]/65 border border-white/5 select-none">
-                  <span className="text-[11px] font-extrabold text-white">Include Charts</span>
-                  <button
-                    type="button"
-                    disabled={credits !== null && credits <= 0}
-                    onClick={() => setIncludeChart(!includeChart)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      includeChart ? 'bg-gradient-to-r from-indigo-500 to-violet-600 shadow-md shadow-indigo-500/10' : 'bg-[#0b1326] border-white/10 border'
-                    } ${credits !== null && credits <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        includeChart ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
+                <div onClick={() => setIncludeChart(!includeChart)} className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex flex-col gap-3 ${includeChart ? 'bg-indigo-500/10 border-indigo-500/50 shadow-inner' : 'bg-[#171f33]/40 border-white/5 hover:border-white/10 hover:bg-[#171f33]/60'}`}>
+                  <div className="flex items-center justify-between">
+                    <BarChart2 className={`w-5 h-5 ${includeChart ? 'text-indigo-400' : 'text-gray-500'}`} />
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${includeChart ? 'bg-indigo-500 border-indigo-500' : 'border-white/20'}`}>
+                      {includeChart && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className={`text-sm font-bold ${includeChart ? 'text-white' : 'text-gray-300'}`}>Include Charts</h4>
+                    <p className="text-[10px] text-gray-500 mt-1 leading-tight font-medium">Generate charts and visual learning aids.</p>
+                  </div>
                 </div>
 
-                {/* Switch 4: Quick Sheet */}
-                <div className="flex items-center justify-between p-3.5 rounded-xl bg-[#171f33]/65 border border-white/5 select-none">
-                  <span className="text-[11px] font-extrabold text-white">Quick Sheet</span>
-                  <button
-                    type="button"
-                    disabled={credits !== null && credits <= 0}
-                    onClick={() => setQuickSheet(!quickSheet)}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      quickSheet ? 'bg-gradient-to-r from-indigo-500 to-violet-600 shadow-md shadow-indigo-500/10' : 'bg-[#0b1326] border-white/10 border'
-                    } ${credits !== null && credits <= 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                        quickSheet ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
+                <div onClick={() => setQuickSheet(!quickSheet)} className={`p-4 rounded-2xl border transition-all cursor-pointer select-none flex flex-col gap-3 ${quickSheet ? 'bg-indigo-500/10 border-indigo-500/50 shadow-inner' : 'bg-[#171f33]/40 border-white/5 hover:border-white/10 hover:bg-[#171f33]/60'}`}>
+                  <div className="flex items-center justify-between">
+                    <FileText className={`w-5 h-5 ${quickSheet ? 'text-indigo-400' : 'text-gray-500'}`} />
+                    <div className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${quickSheet ? 'bg-indigo-500 border-indigo-500' : 'border-white/20'}`}>
+                      {quickSheet && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className={`text-sm font-bold ${quickSheet ? 'text-white' : 'text-gray-300'}`}>Quick Sheet</h4>
+                    <p className="text-[10px] text-gray-500 mt-1 leading-tight font-medium">Generate a one-page revision summary.</p>
+                  </div>
                 </div>
               </div>
 
               {/* Submit Button */}
               <Button 
                 type="submit" 
-                disabled={!topic || (credits !== null && credits <= 0)} 
-                className="w-full h-12 text-sm font-extrabold bg-gradient-to-r from-indigo-500 to-violet-600 hover:brightness-110 shadow-lg shadow-indigo-500/10 active:scale-95 transition-all duration-200 rounded-xl mt-2 flex items-center justify-center gap-2 text-white border-0"
+                disabled={!topic || (credits !== null && credits <= 0) || loading} 
+                className="w-full h-14 text-sm font-extrabold bg-gradient-to-r from-indigo-600 to-violet-600 hover:brightness-110 shadow-lg shadow-indigo-500/20 active:scale-95 transition-all duration-200 rounded-2xl mt-4 flex items-center justify-center gap-2 text-white border-0"
               >
-                Generate Notes ✨
+                {loading ? (
+                  <>
+                    <motion.div animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full" />
+                    {loadingMessages[loadingStep]}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Generate Notes
+                  </>
+                )}
               </Button>
             </form>
           </div>
@@ -639,13 +783,13 @@ export default function Dashboard() {
       {/* Footer */}
       <footer className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center text-[10px] text-gray-500 font-semibold gap-4 select-none">
         <div>
-          <span>© 2024 ExamNotes AI. All rights reserved.</span>
+          <span>© 2026 ExamNotes AI. All rights reserved.</span>
         </div>
         <div className="flex flex-wrap gap-5">
-          <span className="hover:text-gray-300 cursor-pointer transition-colors">Privacy Policy</span>
-          <span className="hover:text-gray-300 cursor-pointer transition-colors">Terms of Service</span>
-          <span className="hover:text-gray-300 cursor-pointer transition-colors">Contact Support</span>
-          <span className="hover:text-gray-300 cursor-pointer transition-colors">API Documentation</span>
+          <a href="/privacy" className="hover:text-gray-300 cursor-pointer transition-colors">Privacy Policy</a>
+          <a href="/terms" className="hover:text-gray-300 cursor-pointer transition-colors">Terms of Service</a>
+          <a href="/support" className="hover:text-gray-300 cursor-pointer transition-colors">Contact Support</a>
+          <a href="/api-docs" className="hover:text-gray-300 cursor-pointer transition-colors">API Documentation</a>
         </div>
       </footer>
     </div>

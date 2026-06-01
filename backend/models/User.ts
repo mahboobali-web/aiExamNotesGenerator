@@ -6,6 +6,8 @@ export interface IUser extends Document {
   displayName: string;
   freeCredits: number;
   stripeCustomerId?: string;
+  currentStreak: number;
+  lastActiveDate?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -16,6 +18,8 @@ const UserSchema: Schema = new Schema({
   displayName: { type: String },
   freeCredits: { type: Number, default: 100 },
   stripeCustomerId: { type: String },
+  currentStreak: { type: Number, default: 0 },
+  lastActiveDate: { type: Date },
 }, { timestamps: true });
 
 export default mongoose.model<IUser>('User', UserSchema);

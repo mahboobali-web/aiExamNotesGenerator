@@ -10,6 +10,10 @@ import Billing from './pages/Billing';
 import Settings from './pages/Settings';
 import PurchaseHistory from './pages/PurchaseHistory';
 import DocTools from './pages/DocTools';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
+import ApiDocumentation from './pages/ApiDocumentation';
+import ContactSupport from './pages/ContactSupport';
 import Navbar from './components/layout/Navbar';
 import Sidebar from './components/layout/Sidebar';
 import api from './lib/api';
@@ -22,16 +26,7 @@ function App() {
   const refreshCredits = async () => {
     if (auth.currentUser) {
       try {
-        const idToken = await auth.currentUser.getIdToken();
-        const res = await api.post('/auth/sync', 
-          { refreshToken: auth.currentUser.refreshToken },
-          {
-            headers: {
-              Authorization: `Bearer ${idToken}`,
-              'X-Refresh-Token': auth.currentUser.refreshToken
-            }
-          }
-        );
+        const res = await api.get('/auth/me');
         setCredits(res.data.user.freeCredits);
       } catch (err) {
         console.error('Error refreshing credits:', err);
@@ -51,17 +46,22 @@ function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         try {
-          // Sync user on initial load or refresh first to establish session in DB
+          // Sync user on initial load or login to establish custom session
           const idToken = await currentUser.getIdToken();
           const res = await api.post('/auth/sync', 
-            { refreshToken: currentUser.refreshToken },
+            {}, // No body needed
             {
               headers: {
-                Authorization: `Bearer ${idToken}`,
-                'X-Refresh-Token': currentUser.refreshToken
+                Authorization: `Bearer ${idToken}`
               }
             }
           );
+          
+          if (res.data.accessToken && res.data.refreshToken) {
+            localStorage.setItem('accessToken', res.data.accessToken);
+            localStorage.setItem('refreshToken', res.data.refreshToken);
+          }
+          
           setCredits(res.data.user.freeCredits);
           setUser(currentUser); // Set user state only AFTER successful session sync
         } catch (err) {
@@ -71,6 +71,8 @@ function App() {
       } else {
         setUser(null);
         setCredits(null);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
       }
       setLoading(false);
     });
@@ -105,6 +107,10 @@ function App() {
                   <Route path="/billing" element={<Billing />} />
                   <Route path="/history" element={<PurchaseHistory />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
+                  <Route path="/terms" element={<TermsOfService />} />
+                  <Route path="/api-docs" element={<ApiDocumentation />} />
+                  <Route path="/support" element={<ContactSupport />} />
                   <Route path="*" element={<Navigate to="/dashboard" />} />
                 </Routes>
               </main>

@@ -41,7 +41,7 @@ export default function Billing() {
 
   const fetchUserCredits = async () => {
     try {
-      const response = await api.post('/auth/sync');
+      const response = await api.get('/auth/me');
       setCredits(response.data.user.freeCredits);
     } catch (err) {
       console.error('Error fetching credits:', err);
@@ -474,13 +474,13 @@ export default function Billing() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4 text-center md:text-left">
             <span className="font-bold text-white text-sm tracking-tight font-sans">ExamNotes AI</span>
-            <span className="text-gray-600 text-xs">© 2024 ExamNotes AI. All rights reserved.</span>
+            <span className="text-gray-600 text-xs">© 2026 ExamNotes AI. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-6 flex-wrap justify-center">
-            <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Privacy Policy</a>
-            <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Terms of Service</a>
-            <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Contact Support</a>
-            <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">API Documentation</a>
+            <a href="/privacy" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Privacy Policy</a>
+            <a href="/terms" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Terms of Service</a>
+            <a href="/support" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Contact Support</a>
+            <a href="/api-docs" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">API Documentation</a>
           </div>
         </div>
       </footer>

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import api from './api';
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyCJoNK3SKu0DyDIEAKg2fXGkol5Eta3_Qo",
@@ -20,19 +21,7 @@ const googleProvider = new GoogleAuthProvider();
 export const loginWithGoogle = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
-    const token = await result.user.getIdToken();
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const response = await fetch(`${baseUrl}/auth/sync`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        refreshToken: result.user.refreshToken
-      })
-    });
-    if (!response.ok) throw new Error('Failed to sync user with backend');
+    // Note: App.tsx handles the /auth/sync and token storage via onAuthStateChanged
     return result.user;
   } catch (error) {
     console.error("Error signing in with Google", error);
@@ -40,6 +29,25 @@ export const loginWithGoogle = async () => {
   }
 };
 
-export const logout = () => signOut(auth);
+export const logout = async () => {
+  // Try to notify backend of logout to revoke session
+  try {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      await fetch(`${baseUrl}/auth/logout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken })
+      });
+    }
+  } catch (err) {
+    console.error('Backend logout failed', err);
+  }
+
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  return signOut(auth);
+};
 
 export { app, auth, analytics };

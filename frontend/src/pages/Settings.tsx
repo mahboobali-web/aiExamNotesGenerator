@@ -28,6 +28,9 @@ export default function Settings() {
   const [activeTab, setActiveTab] = useState('profile');
   const [sessions, setSessions] = useState<any[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(true);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -38,12 +41,28 @@ export default function Settings() {
 
   const fetchDbUserProfile = async () => {
     try {
-      const response = await api.post('/auth/sync');
+      const response = await api.get('/auth/me');
       setDbUser(response.data.user);
+      setEditName(response.data.user.displayName || '');
     } catch (err) {
       console.error('Error fetching DB user profile:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setSavingProfile(true);
+      const res = await api.put('/auth/me', { displayName: editName });
+      if (res.data.success) {
+        setDbUser(res.data.user);
+        setIsEditingProfile(false);
+      }
+    } catch (err) {
+      console.error('Error saving profile:', err);
+    } finally {
+      setSavingProfile(false);
     }
   };
 
@@ -61,11 +80,15 @@ export default function Settings() {
     }
   };
 
-  const handleRevokeSession = async (sessionId: string) => {
+  const handleRevokeSession = async (sessionId: string, isCurrent: boolean) => {
     try {
       const res = await api.delete(`/sessions/${sessionId}`);
       if (res.data.success) {
-        fetchSessions();
+        if (isCurrent) {
+          handleLogout();
+        } else {
+          fetchSessions();
+        }
       }
     } catch (err) {
       console.error('Error revoking device session:', err);
@@ -185,9 +208,30 @@ export default function Settings() {
               <h3 className="text-[17px] font-bold text-white tracking-tight" style={{ fontFamily: 'Geist, sans-serif' }}>
                 Profile
               </h3>
-              <button className="text-xs font-bold text-gray-500 hover:text-white transition-colors">
-                Edit Info
-              </button>
+              {!isEditingProfile ? (
+                <button 
+                  onClick={() => setIsEditingProfile(true)}
+                  className="text-xs font-bold text-gray-500 hover:text-white transition-colors"
+                >
+                  Edit Info
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => setIsEditingProfile(false)}
+                    className="text-xs font-bold text-gray-500 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleSaveProfile}
+                    disabled={savingProfile}
+                    className="text-xs font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    {savingProfile ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Profile Info Container */}
@@ -197,21 +241,27 @@ export default function Settings() {
                 alt="Felix Anderson"
                 className="w-16 h-16 rounded-xl object-cover border border-white/10 shrink-0"
               />
-              <div className="text-center sm:text-left space-y-2 min-w-0">
+              <div className="text-center sm:text-left space-y-2 min-w-0 w-full">
                 <div>
-                  <h4 className="text-base font-bold text-white truncate">
-                    {user?.displayName || 'Felix Anderson'}
-                  </h4>
+                  {isEditingProfile ? (
+                    <input 
+                      type="text" 
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="bg-[#1e253e] text-white text-base font-bold rounded-lg px-3 py-1 w-full max-w-xs border border-white/10 focus:border-indigo-400 focus:outline-none"
+                    />
+                  ) : (
+                    <h4 className="text-base font-bold text-white truncate">
+                      {dbUser?.displayName || user?.displayName || 'Felix Anderson'}
+                    </h4>
+                  )}
                   <p className="text-xs text-gray-400 truncate mt-0.5">
-                    {user?.email || 'felix.a@example.com'}
+                    {dbUser?.email || user?.email || 'felix.a@example.com'}
                   </p>
                 </div>
                 <div className="flex flex-wrap justify-center sm:justify-start gap-2 pt-0.5">
                   <span className="px-2.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[10px] font-extrabold uppercase tracking-wider">
                     Pro Student
-                  </span>
-                  <span className="px-2.5 py-0.5 rounded bg-white/5 text-gray-400 text-[10px] font-extrabold uppercase tracking-wider">
-                    Active Since 2023
                   </span>
                 </div>
               </div>
@@ -288,12 +338,6 @@ export default function Settings() {
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={() => {}}
-                  className="text-xs font-bold text-rose-455 hover:brightness-110 transition-all px-2 py-1"
-                >
-                  Disconnect
-                </button>
               </div>
             </div>
           </div>
@@ -401,14 +445,12 @@ export default function Settings() {
                         </div>
                       </div>
                       
-                      {!session.isCurrent && (
-                        <button
-                          onClick={() => handleRevokeSession(session._id)}
-                          className="text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors px-2 py-1 shrink-0"
-                        >
-                          Revoke
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleRevokeSession(session._id, session.isCurrent)}
+                        className="text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors px-2 py-1 shrink-0"
+                      >
+                        {session.isCurrent ? 'Logout Device' : 'Revoke'}
+                      </button>
                     </div>
                   );
                 })
@@ -434,13 +476,13 @@ export default function Settings() {
         <div className="flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4 text-center md:text-left">
             <span className="font-bold text-white text-sm tracking-tight font-sans">ExamNotes AI</span>
-            <span className="text-gray-600 text-xs">© 2024 ExamNotes AI. All rights reserved.</span>
+            <span className="text-gray-600 text-xs">© 2026 ExamNotes AI. All rights reserved.</span>
           </div>
           <div className="flex items-center gap-6 flex-wrap justify-center">
-            <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Privacy Policy</a>
-            <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Terms of Service</a>
-            <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Contact Support</a>
-            <a href="#" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">API Documentation</a>
+            <a href="/privacy" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Privacy Policy</a>
+            <a href="/terms" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Terms of Service</a>
+            <a href="/support" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">Contact Support</a>
+            <a href="/api-docs" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">API Documentation</a>
           </div>
         </div>
       </footer>

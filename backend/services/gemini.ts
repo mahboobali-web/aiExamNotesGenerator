@@ -7,8 +7,10 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 interface GenerateNotesOptions {
   topic: string;
-  classLevel?: string;
-  examType?: string;
+  fileContext?: string;
+  outputLength?: string;
+  language?: string;
+  learningStyle?: string;
   revisionMode?: boolean;
   includeDiagram?: boolean;
   includeChart?: boolean;
@@ -17,8 +19,10 @@ interface GenerateNotesOptions {
 
 export const buildPrompt = ({
   topic,
-  classLevel,
-  examType,
+  fileContext,
+  outputLength,
+  language,
+  learningStyle,
   revisionMode,
   includeDiagram,
   includeChart,
@@ -41,8 +45,16 @@ Convert the given topic into exam-focused notes.
 
 INPUT:
 Topic: ${topic}
-Class Level: ${classLevel || "Not specified"}
-Exam Type: ${examType || "General"}
+${fileContext ? `
+--- START OF UPLOADED SOURCE MATERIAL ---
+${fileContext.substring(0, 20000)}
+--- END OF UPLOADED SOURCE MATERIAL ---
+
+(CRITICAL: The user has uploaded the above source material. You MUST base your notes, explanations, and facts almost entirely on this provided source material rather than general knowledge. Ensure the response accurately reflects the content, tone, and specific details of this file.)
+` : ''}
+Output Length: ${outputLength || "Medium"}
+Language: ${language || "English"}
+Learning Style: ${learningStyle || "Academic"}
 Revision Mode: ${revisionMode ? "ON" : "OFF"}
 Include Diagram: ${includeDiagram ? "YES" : "NO"}
 Include Charts: ${includeChart ? "YES" : "NO"}
@@ -52,6 +64,9 @@ GLOBAL CONTENT RULES:
 - Use clear, simple, exam-oriented language
 - Notes MUST be Markdown formatted
 - Headings and bullet points only
+- LANGUAGE REQUIREMENT: All content MUST be written in the specified Language (${language || "English"}). If "Mixed", blend English terminology with Urdu explanations.
+- LEARNING STYLE REQUIREMENT: Tailor the content strictly to the specified Learning Style (${learningStyle || "Academic"}). (e.g. if Practical, use real-world examples. If Beginner Friendly, avoid jargon).
+- OUTPUT LENGTH: Adjust the level of detail based on Output Length (${outputLength || "Medium"}).
 
 REVISION MODE RULES (CRITICAL):
 - If REVISION MODE is ON:
