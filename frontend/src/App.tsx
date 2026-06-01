@@ -22,7 +22,16 @@ function App() {
   const refreshCredits = async () => {
     if (auth.currentUser) {
       try {
-        const res = await api.post('/auth/sync', { refreshToken: auth.currentUser.refreshToken });
+        const idToken = await auth.currentUser.getIdToken();
+        const res = await api.post('/auth/sync', 
+          { refreshToken: auth.currentUser.refreshToken },
+          {
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+              'X-Refresh-Token': auth.currentUser.refreshToken
+            }
+          }
+        );
         setCredits(res.data.user.freeCredits);
       } catch (err) {
         console.error('Error refreshing credits:', err);
@@ -43,7 +52,16 @@ function App() {
       if (currentUser) {
         try {
           // Sync user on initial load or refresh first to establish session in DB
-          const res = await api.post('/auth/sync', { refreshToken: currentUser.refreshToken });
+          const idToken = await currentUser.getIdToken();
+          const res = await api.post('/auth/sync', 
+            { refreshToken: currentUser.refreshToken },
+            {
+              headers: {
+                Authorization: `Bearer ${idToken}`,
+                'X-Refresh-Token': currentUser.refreshToken
+              }
+            }
+          );
           setCredits(res.data.user.freeCredits);
           setUser(currentUser); // Set user state only AFTER successful session sync
         } catch (err) {
