@@ -40,16 +40,18 @@ function App() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
       if (currentUser) {
         try {
-          // Sync user on initial load or refresh
+          // Sync user on initial load or refresh first to establish session in DB
           const res = await api.post('/auth/sync', { refreshToken: currentUser.refreshToken });
           setCredits(res.data.user.freeCredits);
+          setUser(currentUser); // Set user state only AFTER successful session sync
         } catch (err) {
           console.error('Failed to sync user on load:', err);
+          setUser(null);
         }
       } else {
+        setUser(null);
         setCredits(null);
       }
       setLoading(false);

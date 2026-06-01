@@ -33,15 +33,19 @@ export const verifyToken = async (req: AuthRequest, res: Response, next: NextFun
           refreshToken: clientRefreshToken
         });
         
-        // Block request if the session was explicitly revoked or doesn't exist anymore
-        if (!session || session.revokedAt) {
+        const isSyncRoute = req.originalUrl?.endsWith('/sync') || req.path === '/sync';
+        
+        // Block request if session is revoked, or if session doesn't exist on a non-sync route
+        if (session?.revokedAt || (!session && !isSyncRoute)) {
           return res.status(401).json({ error: 'Session revoked. Forced logout.' });
         }
         
-        // Update lastActive timestamp
-        session.lastActive = new Date();
-        await session.save();
-        req.session = session;
+        if (session) {
+          // Update lastActive timestamp
+          session.lastActive = new Date();
+          await session.save();
+          req.session = session;
+        }
       }
     }
 
@@ -84,12 +88,18 @@ export const verifyToken = async (req: AuthRequest, res: Response, next: NextFun
                 userId: dbUser._id,
                 refreshToken: clientRefreshToken
               });
-              if (!session || session.revokedAt) {
+              
+              const isSyncRoute = req.originalUrl?.endsWith('/sync') || req.path === '/sync';
+              
+              if (session?.revokedAt || (!session && !isSyncRoute)) {
                 return res.status(401).json({ error: 'Session revoked. Forced logout.' });
               }
-              session.lastActive = new Date();
-              await session.save();
-              req.session = session;
+              
+              if (session) {
+                session.lastActive = new Date();
+                await session.save();
+                req.session = session;
+              }
             }
           }
 

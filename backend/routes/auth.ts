@@ -10,7 +10,7 @@ const router = express.Router();
 router.post('/sync', verifyToken, async (req: AuthRequest, res) => {
   try {
     const { uid, email, name } = req.user;
-    const { refreshToken } = req.body;
+    const refreshToken = req.body.refreshToken || (req.headers['x-refresh-token'] as string);
 
     let user = await User.findOne({ firebaseUid: uid });
 
