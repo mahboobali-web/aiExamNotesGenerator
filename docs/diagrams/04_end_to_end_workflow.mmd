@@ -1,0 +1,36 @@
+sequenceDiagram
+  participant User as User (Browser)
+  participant FE as Frontend (React)
+  participant FB as Firebase Auth
+  participant BE as Backend (Express)
+  participant DB as MongoDB
+  participant AI as Gemini API
+  participant Stripe as Stripe
+
+  User->>FE: Open app / login
+  FE->>FB: Sign in
+  FB-->>FE: ID token
+  FE->>BE: POST /api/auth/sync (Bearer token)
+  BE->>DB: Upsert user by firebaseUid/email
+  DB-->>BE: User record
+  BE-->>FE: user + credits
+
+  User->>FE: Generate notes
+  FE->>BE: POST /api/generate (topic + options)
+  BE->>DB: Check credits
+  BE->>AI: generateContent(prompt)
+  AI-->>BE: JSON string notes
+  BE->>DB: Save Note + deduct 1 credit
+  BE-->>FE: note + remaining credits
+
+  User->>FE: Buy credits
+  FE->>BE: POST /api/checkout/create-checkout-session
+  BE->>Stripe: Create Checkout Session
+  Stripe-->>BE: session URL
+  BE-->>FE: redirect URL
+  User->>Stripe: Complete payment
+  FE->>BE: POST /api/checkout/verify-session
+  BE->>Stripe: Retrieve session/payment
+  BE->>DB: Mark transaction completed + add credits (idempotent)
+  BE-->>FE: updated credits
+

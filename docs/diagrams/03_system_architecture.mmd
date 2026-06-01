@@ -1,0 +1,9 @@
+flowchart LR
+  U["User (Browser)"] --> FE["Frontend (React + Vite)\nfrontend/src/App.tsx"]
+  FE -->|Axios + Firebase ID token| BE["Backend (Express + TS)\nbackend/index.ts"]
+  BE --> AUTH["Firebase Admin\nToken verification\nbackend/middleware/auth.ts"]
+  BE --> DB["MongoDB (Mongoose)\nUser/Note/Transaction/Histories"]
+  BE --> AI["Gemini API\nbackend/services/gemini.ts"]
+  BE --> STRIPE["Stripe\nbackend/services/stripe.ts"]
+  BE --> FILES["Uploads/Artifacts\nPDF→DOCX, merged PDFs,\nsplit PDFs, diagrams, PPTX"]
+

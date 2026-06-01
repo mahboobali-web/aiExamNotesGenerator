@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Geist:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 55% 10%; /* #0b1326 */
+    --foreground: 226 89% 93%; /* #dae2fd */
+    --card: 222 41% 13%;       /* #131b2e */
+    --card-foreground: 226 89% 93%;
+    --popover: 222 55% 10%;
+    --popover-foreground: 226 89% 93%;
+    --primary: 239 100% 88%;   /* #c0c1ff */
+    --primary-foreground: 246 100% 33%; /* #1000a9 */
+    --secondary: 260 100% 87%; /* #d0bcff */
+    --secondary-foreground: 262 100% 28%;
+    --muted: 222 30% 18%;
+    --muted-foreground: 226 20% 70%;
+    --accent: 222 30% 18%;
+    --accent-foreground: 226 89% 93%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 25% 20%;     /* rgba(255,255,255,0.08) */
+    --input: 222 25% 18%;
+    --ring: 239 100% 88%;
+    --radius: 1.5rem;          /* 24px corner radius for modern approach */
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Geist', sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Glassmorphism utility classes */
+.glass-container {
+  background: rgba(19, 27, 46, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.glass-nav {
+  background: rgba(11, 19, 38, 0.8);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0b1326;
+}
+::-webkit-scrollbar-thumb {
+  background: #222a3d;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #31394d;
+}

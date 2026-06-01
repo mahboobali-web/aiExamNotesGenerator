@@ -1,0 +1,7 @@
+flowchart TB
+  I1["Increment 1: Authentication\nFirebase login + backend /api/auth/sync"] --> I2["Increment 2: AI Notes Generation\nGemini + credit deduction + Note stored"]
+  I2 --> I3["Increment 3: Notes Library\nList/Get/Delete notes"]
+  I3 --> I4["Increment 4: Document Tools\nPDF→Word, Merge PDF, Split PDF + downloads"]
+  I4 --> I5["Increment 5: AI Visual Tools\nImage, Diagram (Mermaid), Presentation (PPTX) + history"]
+  I5 --> I6["Increment 6: Billing\nStripe checkout + verify-session + webhook + history"]
+
