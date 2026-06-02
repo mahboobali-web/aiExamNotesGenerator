@@ -77,6 +77,8 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
 
   // Safe JSON Parsing with strict JSON keys fallback, markdown code fence stripping, and automatic syntax healing
   let parsed: any = null;
+  let salvagedNotes: string | null = null;
+  
   try {
     if (content) {
       let cleanContent = content.trim();
@@ -100,10 +102,28 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
         .replace(/,\s*\]/g, ']')             // removes trailing commas in arrays
         .replace(/,\s*\}/g, '}');            // removes trailing commas in objects
 
-      parsed = JSON.parse(cleanContent);
+      try {
+        parsed = JSON.parse(cleanContent);
+      } catch (parseErr) {
+        console.warn('Standard JSON parse failed, attempting regex extraction for notes field...', parseErr);
+        
+        // Attempt to salvage the "notes" field which is the most critical and most likely to contain unescaped quotes/newlines
+        const notesRegex = /"notes"\s*:\s*"(.*?)"\s*(?:,\s*"(?:revisionPoints|questions|subTopics|importance|diagram|charts)"|\s*\})/s;
+        const notesMatch = cleanContent.match(notesRegex);
+        
+        if (notesMatch) {
+            salvagedNotes = notesMatch[1]
+                .replace(/\\n/g, '\n')
+                .replace(/\\"/g, '"')
+                .replace(/\\\\/g, '\\');
+        } else {
+            // Strip out wrapping braces if possible so it looks like plain text
+            salvagedNotes = cleanContent.replace(/^\s*\{/, '').replace(/\}\s*$/, '');
+        }
+      }
     }
   } catch (err) {
-    console.error('Failed to parse notes content as JSON:', err);
+    console.error('Failed to process notes content:', err);
   }
 
   // Populate formatted object matching buildPrompt specifications
@@ -114,7 +134,7 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
       "⭐⭐⭐": ["Practice Questions", "Formula Applications & Calculations"]
     },
     importance: "⭐⭐⭐",
-    notes: content || `# ${topic}\n\nRevision notes content.`,
+    notes: salvagedNotes || content || `# ${topic}\n\nRevision notes content.`,
     revisionPoints: [
       `Definitions and foundational principles for ${topic}`,
       "Key formulas and structural components",
@@ -144,7 +164,7 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
 
   // Collect core subtopics from highest priority tier
   const coreSubtopics = (
-    data.subTopics['⭐⭐⭐'] || data.subTopics['⭐⭐'] || data.subTopics['⭐'] || []
+    data.subTopics?.['⭐⭐⭐'] || data.subTopics?.['⭐⭐'] || data.subTopics?.['⭐'] || []
   ).slice(0, 5);
 
   // Derive exam tip from revision points
@@ -510,7 +530,7 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                     ⭐ Sub Topics by Priority
                   </span>
 
-                  {data.subTopics["⭐"] && data.subTopics["⭐"].length > 0 && (
+                  {data.subTopics?.["⭐"] && data.subTopics["⭐"].length > 0 && (
                     <div className="p-4 rounded-2xl bg-amber-500/[0.04] border border-amber-500/[0.08]">
                       <h4 className="text-xs font-bold text-amber-400 flex items-center gap-1.5 mb-2.5">
                         ⭐ Standard Priority
@@ -523,7 +543,7 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                     </div>
                   )}
 
-                  {data.subTopics["⭐⭐"] && data.subTopics["⭐⭐"].length > 0 && (
+                  {data.subTopics?.["⭐⭐"] && data.subTopics["⭐⭐"].length > 0 && (
                     <div className="p-4 rounded-2xl bg-orange-500/[0.04] border border-orange-500/[0.08]">
                       <h4 className="text-xs font-bold text-orange-400 flex items-center gap-1.5 mb-2.5">
                         ⭐⭐ High Priority
@@ -536,7 +556,7 @@ export default function NotesDashboard({ content, topic, onDeeperDive }: NotesDa
                     </div>
                   )}
 
-                  {data.subTopics["⭐⭐⭐"] && data.subTopics["⭐⭐⭐"].length > 0 && (
+                  {data.subTopics?.["⭐⭐⭐"] && data.subTopics["⭐⭐⭐"].length > 0 && (
                     <div className="p-4 rounded-2xl bg-rose-500/[0.04] border border-rose-500/[0.08]">
                       <h4 className="text-xs font-bold text-rose-400 flex items-center gap-1.5 mb-2.5">
                         ⭐⭐⭐ Critical Priority
